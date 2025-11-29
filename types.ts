@@ -78,6 +78,13 @@ export interface MedicalDocument {
   document_type: string;
   uploaded_at: string;
   file?: string;
+  // New AI & Workflow fields
+  doctor_id?: number;
+  doctor_name?: string;
+  patient_name?: string; // For doctor view
+  ai_summary?: string;
+  ai_tips?: string;
+  status: 'pending' | 'approved' | 'rejected';
 }
 
 export interface DoctorDashboardStats {

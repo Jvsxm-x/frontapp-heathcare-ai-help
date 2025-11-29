@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -20,7 +19,7 @@ export const Dashboard = () => {
     const fetchData = async () => {
       try {
         // Initialize Patient Profile as requested
-        const userData = await api.post<User>('/patients/', {});
+        await api.post<User>('/patients/', {});
         
         const statsData = await api.get<MedicalStats>('/records/stats/');
         setStats(statsData);
@@ -28,30 +27,43 @@ export const Dashboard = () => {
         const alertsData = await api.get<Alert[]>('/alerts/');
         setAlerts(alertsData);
 
-        // Fetch Lab Orders (mocked endpoint for now if not available)
-        // In production: await api.get<LabOrder[]>('/medical/lab_orders/');
-        // Simulating response:
-        const mockOrders: LabOrder[] = [
-            { 
-                id: 1, patient_id: 1, doctor_id: 2, patient_name: user?.username || 'Me', 
-                test_name: 'Complete Blood Count', status: 'pending', requested_at: new Date().toISOString() 
-            }
-        ];
-        setLabOrders(mockOrders);
+        // Fetch Lab Orders with LocalStorage fallback/sync
+        const storedOrders = localStorage.getItem('lab_orders');
+        if (storedOrders) {
+            setLabOrders(JSON.parse(storedOrders));
+        } else {
+            // Mock default orders
+            const mockOrders: LabOrder[] = [
+                { 
+                    id: 1, patient_id: 1, doctor_id: 2, patient_name: user?.username || 'Me', 
+                    test_name: 'Complete Blood Count', status: 'pending', requested_at: new Date().toISOString() 
+                },
+                { 
+                    id: 2, patient_id: 1, doctor_id: 2, patient_name: user?.username || 'Me', 
+                    test_name: 'Lipid Panel', status: 'pending', requested_at: new Date(Date.now() - 86400000).toISOString() 
+                }
+            ];
+            setLabOrders(mockOrders);
+            localStorage.setItem('lab_orders', JSON.stringify(mockOrders));
+        }
 
       } catch (error) {
         console.error("Failed to fetch dashboard data", error);
       }
     };
     fetchData();
+    
+    const handleStorage = () => {
+        const stored = localStorage.getItem('lab_orders');
+        if (stored) setLabOrders(JSON.parse(stored));
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, [user?.username]);
 
   const handleFileUpload = async (orderId: number, file: File) => {
       setUploadingOrderId(orderId);
       try {
-          // Mock uploading file and getting AI analysis
-          // await api.upload(`/medical/lab_orders/${orderId}/upload`, file);
-          
           // Simulate AI Processing delay
           await new Promise(resolve => setTimeout(resolve, 2000));
           
@@ -59,8 +71,11 @@ export const Dashboard = () => {
           const mockAnalysis = "AI Analysis: The uploaded document indicates elevated leukocytes, suggesting a potential mild infection. Hemoglobin levels are normal.";
           setAiInsight(mockAnalysis);
 
-          // Update local state
-          setLabOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'completed', ai_summary: mockAnalysis } : o));
+          // Update local state and persist
+          const updatedOrders = labOrders.map(o => o.id === orderId ? { ...o, status: 'completed', ai_summary: mockAnalysis } as LabOrder : o);
+          setLabOrders(updatedOrders);
+          localStorage.setItem('lab_orders', JSON.stringify(updatedOrders));
+          
           alert("File uploaded successfully! AI analysis complete.");
       } catch (e) {
           alert("Upload failed");

@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { ROUTES } from '../constants';
+import { ShieldAlert } from 'lucide-react';
 
 export const Register = () => {
   const [formData, setFormData] = useState({
@@ -14,8 +16,19 @@ export const Register = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [registrationAllowed, setRegistrationAllowed] = useState(true);
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+      const settings = localStorage.getItem('admin_settings');
+      if (settings) {
+          const parsed = JSON.parse(settings);
+          if (parsed.allowRegistration === false) {
+              setRegistrationAllowed(false);
+          }
+      }
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -34,6 +47,23 @@ export const Register = () => {
       setLoading(false);
     }
   };
+
+  if (!registrationAllowed) {
+    return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+            <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+                <div className="bg-red-50 p-4 rounded-full w-fit mx-auto mb-4">
+                    <ShieldAlert size={32} className="text-red-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">Registration Closed</h2>
+                <p className="text-slate-500 mb-6">New account registration is currently disabled by the system administrator.</p>
+                <Link to={ROUTES.LOGIN}>
+                    <Button className="w-full">Back to Login</Button>
+                </Link>
+            </div>
+        </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">

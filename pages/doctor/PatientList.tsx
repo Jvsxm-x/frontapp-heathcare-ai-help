@@ -1,8 +1,7 @@
-
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { Patient } from '../../types';
-import { Search, Eye, FileText, UserPlus, TestTube } from 'lucide-react';
+import { Search, Eye, FileText, UserPlus, TestTube, Edit, Trash2, X } from 'lucide-react';
 import { Button } from '../../components/Button';
 
 export const PatientList = () => {
@@ -11,9 +10,9 @@ export const PatientList = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [editingPatientId, setEditingPatientId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   
-  // Form data for new patient
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -49,20 +48,54 @@ export const PatientList = () => {
     fetchPatients();
   }, []);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleOpenModal = (patient?: Patient) => {
+      if (patient) {
+          setEditingPatientId(patient.id);
+          setFormData({
+              first_name: patient.first_name || '',
+              last_name: patient.last_name || '',
+              date_of_birth: patient.date_of_birth,
+              phone_number: patient.phone_number,
+              address: patient.address,
+              emergency_contact: patient.emergency_contact,
+              medical_history: patient.medical_history
+          });
+      } else {
+          setEditingPatientId(null);
+          setFormData({
+            first_name: '', last_name: '', date_of_birth: '', phone_number: '', 
+            address: '', emergency_contact: '', medical_history: ''
+          });
+      }
+      setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: number) => {
+      if (!window.confirm("Are you sure you want to remove this patient?")) return;
+      try {
+          await api.delete(`/patients/${id}/`);
+          setPatients(prev => prev.filter(p => p.id !== id));
+      } catch (e) {
+          alert("Failed to delete patient");
+      }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setLoading(true);
       try {
-          await api.post('/patients/', formData);
-          await fetchPatients();
+          if (editingPatientId) {
+             const updated = await api.put<Patient>(`/patients/${editingPatientId}/`, formData);
+             setPatients(prev => prev.map(p => p.id === editingPatientId ? updated : p));
+             alert("Patient updated successfully");
+          } else {
+             const created = await api.post<Patient>('/patients/', formData);
+             setPatients(prev => [...prev, created]);
+             alert("Patient added successfully");
+          }
           setIsModalOpen(false);
-          setFormData({
-              first_name: '', last_name: '', date_of_birth: '', phone_number: '', 
-              address: '', emergency_contact: '', medical_history: ''
-          });
-          alert("Patient added successfully");
       } catch (e) {
-          alert("Failed to add patient");
+          alert("Operation failed");
       } finally {
           setLoading(false);
       }
@@ -72,7 +105,7 @@ export const PatientList = () => {
       if(!selectedPatient) return;
       setLoading(true);
       try {
-          // Mock endpoint for ordering test
+          // Mock endpoint or actual
           // await api.post('/medical/lab_orders/', { patient_id: selectedPatient.id, test_name: selectedTest });
           alert(`Test '${selectedTest}' ordered for ${selectedPatient.first_name}`);
           setIsOrderModalOpen(false);
@@ -107,7 +140,7 @@ export const PatientList = () => {
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <Button onClick={() => setIsModalOpen(true)}>
+                <Button onClick={() => handleOpenModal()}>
                     <UserPlus size={18} className="mr-2" />
                     Add Patient
                 </Button>
@@ -147,8 +180,21 @@ export const PatientList = () => {
                                 >
                                     <TestTube size={18} />
                                 </Button>
-                                <Button variant="ghost" className="text-blue-600 hover:bg-blue-50" title="View Details">
-                                    <Eye size={18} />
+                                <Button 
+                                    variant="ghost" 
+                                    className="text-blue-600 hover:bg-blue-50" 
+                                    title="Edit Patient"
+                                    onClick={() => handleOpenModal(patient)}
+                                >
+                                    <Edit size={18} />
+                                </Button>
+                                <Button 
+                                    variant="ghost" 
+                                    className="text-red-600 hover:bg-red-50" 
+                                    title="Delete Patient"
+                                    onClick={() => handleDelete(patient.id)}
+                                >
+                                    <Trash2 size={18} />
                                 </Button>
                             </td>
                         </tr>
@@ -164,12 +210,15 @@ export const PatientList = () => {
             </table>
         </div>
 
-        {/* Add Patient Modal */}
+        {/* Add/Edit Patient Modal */}
         {isModalOpen && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-                <div className="bg-white rounded-xl p-8 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
-                    <h3 className="text-xl font-bold mb-6">Register New Patient</h3>
-                    <form onSubmit={handleCreate} className="space-y-4">
+                <div className="bg-white rounded-xl p-8 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto relative">
+                    <button onClick={() => setIsModalOpen(false)} className="absolute right-4 top-4 text-slate-400 hover:text-slate-600">
+                        <X size={24} />
+                    </button>
+                    <h3 className="text-xl font-bold mb-6">{editingPatientId ? 'Edit Patient' : 'Register New Patient'}</h3>
+                    <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
@@ -216,7 +265,7 @@ export const PatientList = () => {
 
                         <div className="flex justify-end gap-3 pt-4">
                             <Button variant="secondary" type="button" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                            <Button type="submit" isLoading={loading}>Add Patient</Button>
+                            <Button type="submit" isLoading={loading}>{editingPatientId ? 'Update' : 'Add'} Patient</Button>
                         </div>
                     </form>
                 </div>
